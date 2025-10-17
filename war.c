@@ -1,322 +1,349 @@
-#include <iostream>
-#include <cstdlib>   // calloc, free, rand, srand
-#include <cstring>   // strcpy, strlen
-#include <ctime>     // time
-#include <clocale>   // setlocale
-#include <limits>    // numeric_limits
+#include <cstdio>    // Para printf, scanf, getchar
+#include <cstdlib>   // Para malloc, free, srand, rand, NULL
+#include <ctime>     // Para time
+#include <cstring>   // Para strcpy, strcmp
 
+// ============================================================================
 // --- Constantes Globais ---
-const int NUM_TERRITORIOS = 8;
-const int NUM_MISSOES     = 2;
-const int MAX_NOME        = 32;
+// ============================================================================
+#define NUM_TERRITORIOS 5
+#define NUM_MISSOES 3
+#define MAX_STR_LEN 50
+#define VITORIA 1
+#define DERROTA 0
+#define SAIR 0
 
-// Cores/donos (inteiro simples)
-const int COR_NEUTRA  = 0;
-const int COR_JOGADOR = 1;
-const int COR_VERMELHA = 2;
-const int COR_VERDE   = 3;
-
+// ============================================================================
 // --- Estrutura de Dados ---
-struct Territorio {
-    char nome[MAX_NOME];
-    int corDoExercito; // dona do território (0 neutro, 1 jogador, 2 vermelho, ...)
+// ============================================================================
+typedef struct {
+    char nome[MAX_STR_LEN];
+    char cor_exercito[MAX_STR_LEN]; // "Vermelho", "Azul", "Neutro"
     int tropas;
-};
+} Territorio;
 
+// ============================================================================
 // --- Protótipos das Funções ---
-// Setup e gerenciamento de memória
-Territorio* alocarMapa(int quantidade);
-void liberarMemoria(Territorio* mapa);
+// ============================================================================
 
-// Inicialização e exibição
-void inicializarTerritorios(Territorio* mapa, int quantidade);
-void exibirMapa(const Territorio* mapa, int quantidade);
+// Funções de setup e gerenciamento de memória:
+Territorio* alocarMapa();
+void inicializarTerritorios(Territorio* mapa, const char* cor_jogador);
+void liberarMemoria(Territorio** mapa); // Recebe o endereço do ponteiro para NULL após free
 
-// Interface / menu
+// Funções de interface com o usuário:
 void exibirMenuPrincipal();
-void exibirMissao(int missaoId, int corJogador);
+void exibirMapa(const Territorio* const mapa); // const correctness: não modifica o mapa
+void exibirMissao(int id_missao);
+void limparBufferEntrada(); // Utilitária
 
-// Fase de ataque / batalha
-void faseDeAtaque(Territorio* mapa, int quantidade, int corJogador);
-void simularAtaque(Territorio* origem, Territorio* destino, int corJogador);
-
-// Missões e verificação de vitória
+// Funções de lógica principal do jogo:
 int sortearMissao();
-bool verificarVitoria(const Territorio* mapa, int quantidade, int missaoId, int corJogador);
+void faseDeAtaque(Territorio* mapa, const char* cor_jogador);
+void simularAtaque(Territorio* atacante, Territorio* defensor, const char* cor_jogador);
+int verificarVitoria(const Territorio* const mapa, int id_missao, const char* cor_jogador);
 
-// Utilitárias
-void limparBufferEntrada();
-int lerInteiroSeguro();
-
-// ---------------------
-// --- Função main() ---
-// ---------------------
+// ============================================================================
+// --- Função Principal (main) ---
+// ============================================================================
 int main() {
-    setlocale(LC_ALL, "");              // portugues/locale (se suportado)
-    srand(static_cast<unsigned>(time(nullptr)));
+    // Variáveis de estado
+    Territorio* mapa = NULL;
+    char cor_jogador[] = "Vermelho"; // Cor fixa do jogador para este exemplo
+    int id_missao_secreta = 0;
+    int escolha = -1;
+    int vitoria = DERROTA;
 
-    // 1. Configuração inicial
-    Territorio* mapa = alocarMapa(NUM_TERRITORIOS);
-    if (mapa == nullptr) {
-        std::cerr << "Erro: falha ao alocar memoria para o mapa.\n";
+    // 1. Configuração Inicial (Setup):
+    // Define o locale (não estritamente necessário em C++ moderno, mas boa prática em C)
+    // Inicializa a semente para geração de números aleatórios
+    srand((unsigned int)time(NULL));
+
+    printf("Iniciando o Jogo Estruturado de WAR...\n");
+
+    // Aloca a memória para o mapa do mundo e verifica se a alocação foi bem-sucedida.
+    mapa = alocarMapa();
+    if (mapa == NULL) {
+        fprintf(stderr, "Erro: Falha ao alocar memória para o mapa.\n");
         return 1;
     }
-    inicializarTerritorios(mapa, NUM_TERRITORIOS);
 
-    int corJogador = COR_JOGADOR; // cor do jogador fixa aqui
-    int missao = sortearMissao();
+    // Preenche os territórios com seus dados iniciais.
+    inicializarTerritorios(mapa, cor_jogador);
 
-    // 2. Laço principal do jogo
-    int escolha = -1;
-    bool venceu = false;
+    // Sorteia a missão secreta do jogador.
+    id_missao_secreta = sortearMissao();
+    printf("Sua cor de exército: %s.\n", cor_jogador);
+
+    // 2. Laço Principal do Jogo (Game Loop):
     do {
-        std::cout << "\n=== MAPA ATUAL ===\n";
-        exibirMapa(mapa, NUM_TERRITORIOS);
-        std::cout << "\n=== MISSÃO ===\n";
-        exibirMissao(missao, corJogador);
-
+        printf("\n==================== RODADA ATUAL ====================\n");
+        exibirMapa(mapa);
+        exibirMissao(id_missao_secreta);
         exibirMenuPrincipal();
-        std::cout << "Escolha: ";
-        escolha = lerInteiroSeguro();
+
+        printf("Escolha sua ação (0 para sair): ");
+        if (scanf("%d", &escolha) != 1) {
+            limparBufferEntrada();
+            escolha = -1; // Garante loop caso a entrada seja inválida
+        }
+        limparBufferEntrada();
 
         switch (escolha) {
             case 1:
-                faseDeAtaque(mapa, NUM_TERRITORIOS, corJogador);
+                faseDeAtaque(mapa, cor_jogador);
                 break;
             case 2:
-                if (verificarVitoria(mapa, NUM_TERRITORIOS, missao, corJogador)) {
-                    std::cout << "\nParabens! Voce cumpriu a missao e venceu o jogo!\n";
-                    venceu = true;
+                vitoria = verificarVitoria(mapa, id_missao_secreta, cor_jogador);
+                if (vitoria) {
+                    printf("\n*** PARABÉNS! VOCÊ CUMPRIU SUA MISSÃO! ***\n");
+                    escolha = SAIR; // Sai do loop após a vitória
                 } else {
-                    std::cout << "\nMissao ainda nao cumprida. Continue tentando!\n";
+                    printf("\nSeus objetivos ainda não foram alcançados. Continue lutando!\n");
                 }
                 break;
-            case 0:
-                std::cout << "Saindo do jogo...\n";
+            case SAIR:
+                printf("Encerrando o jogo...\n");
                 break;
             default:
-                std::cout << "Opcao invalida. Tente novamente.\n";
+                printf("Opção inválida. Tente novamente.\n");
+                break;
         }
 
-    } while (escolha != 0 && !venceu);
+        if (escolha != SAIR) {
+            printf("\nPressione ENTER para continuar a próxima rodada...");
+            getchar(); // Pausa a execução
+        }
 
-    // 3. Limpeza
-    liberarMemoria(mapa);
+    } while (escolha != SAIR);
+
+    // 3. Limpeza:
+    liberarMemoria(&mapa);
+
     return 0;
 }
 
-// -----------------------------
-// --- Implementacao das funcoes
-// -----------------------------
+// ============================================================================
+// --- Implementação das Funções ---
+// ============================================================================
 
-// Aloca dinamicamente o mapa (calloc conforme pedido)
-Territorio* alocarMapa(int quantidade) {
-    Territorio* mapa = static_cast<Territorio*>(calloc(quantidade, sizeof(Territorio)));
+Territorio* alocarMapa() {
+    // Aloca dinamicamente a memória para o vetor de territórios usando calloc
+    // Retorna um ponteiro para a memória alocada ou NULL em caso de falha.
+    Territorio* mapa = (Territorio*)calloc(NUM_TERRITORIOS, sizeof(Territorio));
     return mapa;
 }
 
-// Inicializa nomes, donos e tropas iniciais
-void inicializarTerritorios(Territorio* mapa, int quantidade) {
-    if (mapa == nullptr) return;
+void inicializarTerritorios(Territorio* mapa, const char* cor_jogador) {
+    // Preenche os dados iniciais de cada território no mapa
+    // Utiliza passagem por referência (ponteiro) para modificar o mapa.
+    
+    // Configurações iniciais
+    strcpy(mapa[0].nome, "Asia Central");
+    strcpy(mapa[0].cor_exercito, cor_jogador);
+    mapa[0].tropas = 5;
 
-    // nomes e configuração inicial (exemplo simples)
-    const char* nomesPadrao[NUM_TERRITORIOS] = {
-        "Ilha do Norte", "Vila Antiga", "Planalto", "Bosque",
-        "Fortaleza", "Ponte Velha", "Deserto", "Vale Azul"
-    };
-    // Distribuicao inicial de donos e tropas (simples)
-    int donos[NUM_TERRITORIOS] = {
-        COR_JOGADOR, COR_VERMELHA, COR_VERMELHA, COR_VERDE,
-        COR_VERDE, COR_NEUTRA, COR_VERMELHA, COR_JOGADOR
-    };
-    int tropasIni[NUM_TERRITORIOS] = {5,4,3,3,2,1,4,6};
+    strcpy(mapa[1].nome, "Groelandia");
+    strcpy(mapa[1].cor_exercito, cor_jogador);
+    mapa[1].tropas = 3;
 
-    for (int i = 0; i < quantidade && i < NUM_TERRITORIOS; ++i) {
-        strncpy(mapa[i].nome, nomesPadrao[i], MAX_NOME-1);
-        mapa[i].nome[MAX_NOME-1] = '\0';
-        mapa[i].corDoExercito = donos[i];
-        mapa[i].tropas = tropasIni[i];
+    strcpy(mapa[2].nome, "Alaska");
+    strcpy(mapa[2].cor_exercito, "Azul");
+    mapa[2].tropas = 4;
+
+    strcpy(mapa[3].nome, "Egipto");
+    strcpy(mapa[3].cor_exercito, "Azul");
+    mapa[3].tropas = 3;
+
+    strcpy(mapa[4].nome, "Madagascar");
+    strcpy(mapa[4].cor_exercito, "Neutro");
+    mapa[4].tropas = 2;
+
+    printf("Mapa inicializado com %d territórios.\n", NUM_TERRITORIOS);
+}
+
+void liberarMemoria(Territorio** mapa) {
+    // Libera a memória previamente alocada e define o ponteiro como NULL
+    if (*mapa != NULL) {
+        free(*mapa);
+        *mapa = NULL; // Evita ponteiros pendurados (dangling pointers)
+        printf("\nMemória do mapa liberada.\n");
     }
 }
 
-// Libera memoria
-void liberarMemoria(Territorio* mapa) {
-    if (mapa != nullptr) free(mapa);
-}
-
-// Exibe o mapa (somente leitura -> const)
-void exibirMapa(const Territorio* mapa, int quantidade) {
-    if (mapa == nullptr) return;
-    std::cout << "Idx | Nome               | Dono  | Tropas\n";
-    std::cout << "----+--------------------+-------+--------\n";
-    for (int i = 0; i < quantidade; ++i) {
-        const char* donoStr;
-        switch (mapa[i].corDoExercito) {
-            case COR_JOGADOR: donoStr = "Voce"; break;
-            case COR_VERMELHA: donoStr = "Vermelha"; break;
-            case COR_VERDE: donoStr = "Verde"; break;
-            default: donoStr = "Neutro";
-        }
-        std::cout << (i<10?" ":"") << i << "  | "
-                  << mapa[i].nome << (strlen(mapa[i].nome) < 18 ? std::string(18 - strlen(mapa[i].nome), ' ') : "")
-                  << " | " << donoStr << (strlen(donoStr) < 6 ? std::string(6 - strlen(donoStr), ' ') : "")
-                  << " | " << mapa[i].tropas << "\n";
-    }
-}
-
-// Exibe menu principal
 void exibirMenuPrincipal() {
-    std::cout << "\n--- MENU PRINCIPAL ---\n";
-    std::cout << "1 - Atacar (iniciar fase de ataque)\n";
-    std::cout << "2 - Verificar missao / condicao de vitoria\n";
-    std::cout << "0 - Sair\n";
+    // Imprime na tela o menu de ações disponíveis
+    printf("\n--- Menu de Ações ---\n");
+    printf("1. Atacar Território\n");
+    printf("2. Verificar Missão/Vitória\n");
+    printf("0. Sair do Jogo\n");
 }
 
-// Exibe descricao da missao com base no ID
-void exibirMissao(int missaoId, int corJogador) {
-    if (missaoId == 0) {
-        std::cout << "Missao: DESTRUIR um exército inimigo por completo (remover todas as tropas de uma cor inimiga).\n";
-    } else if (missaoId == 1) {
-        std::cout << "Missao: CONQUISTAR 4 territorios no mapa (ser o dono de pelo menos 4 territorios).\n";
-    } else {
-        std::cout << "Missao: Desconhecida.\n";
-    }
-}
-
-// Gerencia a interface para escolher origem/destino e chama simularAtaque
-void faseDeAtaque(Territorio* mapa, int quantidade, int corJogador) {
-    if (mapa == nullptr) return;
-
-    std::cout << "\n-- FASE DE ATAQUE --\n";
-    std::cout << "Digite o indice do território de origem (onde voce tem tropas): ";
-    int idxOrigem = lerInteiroSeguro();
-    if (idxOrigem < 0 || idxOrigem >= quantidade) {
-        std::cout << "Origem invalida.\n";
-        return;
-    }
-    if (mapa[idxOrigem].corDoExercito != corJogador) {
-        std::cout << "Voce nao controla o territorio de origem.\n";
-        return;
-    }
-    if (mapa[idxOrigem].tropas < 2) {
-        std::cout << "Precisa ter pelo menos 2 tropas para atacar (1 deve permanecer).\n";
-        return;
-    }
-
-    std::cout << "Digite o indice do territorio de destino (inimigo ou neutro): ";
-    int idxDestino = lerInteiroSeguro();
-    if (idxDestino < 0 || idxDestino >= quantidade) {
-        std::cout << "Destino invalido.\n";
-        return;
-    }
-    if (idxDestino == idxOrigem) {
-        std::cout << "Origem e destino iguais.\n";
-        return;
-    }
-
-    // Chama a simulação passando ponteiros para origem e destino
-    simularAtaque(&mapa[idxOrigem], &mapa[idxDestino], corJogador);
-}
-
-// Simula uma batalha simples e atualiza tropas/dono (usa ponteiros)
-void simularAtaque(Territorio* origem, Territorio* destino, int corJogador) {
-    if (origem == nullptr || destino == nullptr) return;
-
-    std::cout << "\n--- Simulacao de Ataque ---\n";
-    std::cout << "Origem: " << origem->nome << " (" << origem->tropas << " tropas)\n";
-    std::cout << "Destino: " << destino->nome << " (" << destino->tropas << " tropas, dono: " << destino->corDoExercito << ")\n";
-
-    // Simples rolagem de dados: atacante rola N dados = tropas-1, defensor rola M dados = min(2, tropasDef)
-    int atacanteDados = origem->tropas - 1;
-    if (atacanteDados > 3) atacanteDados = 3; // limite por rodada
-    int defensorDados = destino->tropas >=2 ? 2 : destino->tropas;
-    if (defensorDados < 1) defensorDados = 1;
-
-    // Soma das rolagens
-    int somaAtq = 0, somaDef = 0;
-    for (int i = 0; i < atacanteDados; ++i) somaAtq += (rand() % 6) + 1;
-    for (int i = 0; i < defensorDados; ++i) somaDef += (rand() % 6) + 1;
-
-    std::cout << "Atacante (" << atacanteDados << " dados) soma: " << somaAtq << "\n";
-    std::cout << "Defensor  (" << defensorDados << " dados) soma: " << somaDef << "\n";
-
-    if (somaAtq > somaDef) {
-        // atacante vence: remove 1-2 tropas do defensor
-        int perdas = 1 + (rand() % 2);
-        if (perdas > destino->tropas) perdas = destino->tropas;
-        destino->tropas -= perdas;
-        std::cout << "Atacante venceu! Defensor perde " << perdas << " tropas.\n";
-    } else {
-        // defensor vence: atacante perde 1 tropa
-        origem->tropas -= 1;
-        std::cout << "Defensor resistiu! Atacante perde 1 tropa.\n";
-    }
-
-    // Se destino ficar com 0 tropas, conquista
-    if (destino->tropas <= 0) {
-        std::cout << "Territorio " << destino->nome << " conquistado!\n";
-        destino->corDoExercito = corJogador;
-        // mover uma tropa do atacante para ocupar (deixa pelo menos 1 na origem)
-        if (origem->tropas > 1) {
-            origem->tropas -= 1;
-            destino->tropas = 1;
-            std::cout << "1 tropa movida de " << origem->nome << " para " << destino->nome << ".\n";
-        } else {
-            // se por alguma razao nao houver tropas sobrando, ocupa sem mover (caso extremo)
-            destino->tropas = 0;
-        }
+void exibirMapa(const Territorio* const mapa) {
+    // Mostra o estado atual de todos os territórios
+    // Usa 'const' para garantir que a função apenas leia os dados
+    printf("\n--- Mapa do Mundo ---\n");
+    printf("ID | Nome                   | Dono           | Tropas\n");
+    printf("---|------------------------|----------------|-------\n");
+    for (int i = 0; i < NUM_TERRITORIOS; i++) {
+        printf("%-2d | %-22s | %-14s | %d\n",
+               i, mapa[i].nome, mapa[i].cor_exercito, mapa[i].tropas);
     }
 }
 
-// Sorteia ID de missao aleatoria
-int sortearMissao() {
-    // 0 => destruir exército, 1 => conquistar X territorios
-    return rand() % NUM_MISSOES;
-}
-
-// Verifica condicao de vitoria baseado na missao
-bool verificarVitoria(const Territorio* mapa, int quantidade, int missaoId, int corJogador) {
-    if (mapa == nullptr) return false;
-
-    if (missaoId == 0) {
-        // Missao: destruir um exército inimigo (qualquer cor diferente da do jogador)
-        // Condicao: existir ao menos uma cor inimiga cujo total de tropas seja 0 ou nao exista território com essa cor.
-        // Implementacao simples: pra cada cor inimiga conhecida, verifica se ha tropas dessa cor
-        int somaVermelho = 0;
-        int somaVerde = 0;
-        for (int i = 0; i < quantidade; ++i) {
-            if (mapa[i].corDoExercito == COR_VERMELHA) somaVermelho += mapa[i].tropas;
-            if (mapa[i].corDoExercito == COR_VERDE) somaVerde += mapa[i].tropas;
-        }
-        // Se alguma das cores inimigas tiver soma == 0, consideramos missão cumprida
-        if (somaVermelho == 0 || somaVerde == 0) return true;
-        return false;
-    } else if (missaoId == 1) {
-        // Missao: conquistar N territorios (ex: 4)
-        const int alvo = 4;
-        int cont = 0;
-        for (int i = 0; i < quantidade; ++i) {
-            if (mapa[i].corDoExercito == corJogador) ++cont;
-        }
-        return (cont >= alvo);
+void exibirMissao(int id_missao) {
+    // Exibe a descrição da missão atual do jogador
+    printf("\n--- Missão Secreta (ID %d) ---\n", id_missao);
+    switch (id_missao) {
+        case 1:
+            printf("Objetivo: Conquistar no mínimo 4 territórios.\n");
+            break;
+        case 2:
+            printf("Objetivo: Destruir o exército AZUL completamente.\n");
+            break;
+        case 3:
+            printf("Objetivo: Possuir mais de 10 tropas em um único território.\n");
+            break;
+        default:
+            printf("Missão desconhecida.\n");
+            break;
     }
-
-    return false;
 }
 
-// Limpa buffer de entrada (util para misturar cin/cstdio)
 void limparBufferEntrada() {
-    std::cin.clear();
-    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    // Função utilitária para limpar o buffer de entrada
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF) {}
 }
 
-// Le inteiro com tratamento basico para evitar loop infinito em caso de entrada invalida
-int lerInteiroSeguro() {
-    int valor;
-    while (!(std::cin >> valor)) {
-        std::cout << "Entrada invalida. Digite um numero inteiro: ";
-        limparBufferEntrada();
+int sortearMissao() {
+    // Sorteia e retorna um ID de missão aleatório
+    return (rand() % NUM_MISSOES) + 1; // De 1 a NUM_MISSOES
+}
+
+void faseDeAtaque(Territorio* mapa, const char* cor_jogador) {
+    // Gerencia a interface para a ação de ataque
+    int id_origem, id_destino;
+
+    printf("\n--- Fase de Ataque ---\n");
+
+    printf("ID do seu território de ataque: ");
+    if (scanf("%d", &id_origem) != 1 || id_origem < 0 || id_origem >= NUM_TERRITORIOS) {
+        printf("ID de origem inválido.\n");
+        return;
     }
     limparBufferEntrada();
-    return valor;
+
+    // Validação de Dono e Tropas
+    if (strcmp(mapa[id_origem].cor_exercito, cor_jogador) != 0) {
+        printf("Você não é o dono do território de origem.\n");
+        return;
+    }
+    if (mapa[id_origem].tropas <= 1) {
+        printf("O território de origem precisa de pelo menos 2 tropas para atacar (1 de defesa).\n");
+        return;
+    }
+
+    printf("ID do território a ser atacado: ");
+    if (scanf("%d", &id_destino) != 1 || id_destino < 0 || id_destino >= NUM_TERRITORIOS) {
+        printf("ID de destino inválido.\n");
+        return;
+    }
+    limparBufferEntrada();
+
+    // Validação de Não-Ataque a Si Próprio
+    if (id_origem == id_destino) {
+        printf("Não é possível atacar seu próprio território.\n");
+        return;
+    }
+
+    // Validação de Dono
+    if (strcmp(mapa[id_destino].cor_exercito, cor_jogador) == 0) {
+        printf("O território de destino já é seu.\n");
+        return;
+    }
+    
+    // Executa a lógica de ataque
+    simularAtaque(&mapa[id_origem], &mapa[id_destino], cor_jogador);
+}
+
+void simularAtaque(Territorio* atacante, Territorio* defensor, const char* cor_jogador) {
+    // Executa a lógica de uma batalha
+    int rolagem_atacante = (rand() % 6) + 1; // Dado de 1 a 6
+    int rolagem_defensor = (rand() % 6) + 1;
+
+    printf("\n--- Resultado do Combate ---\n");
+    printf("Atacante (%s - %d tropas) rolou: %d\n", atacante->nome, atacante->tropas, rolagem_atacante);
+    printf("Defensor (%s - %d tropas) rolou: %d\n", defensor->nome, defensor->tropas, rolagem_defensor);
+
+    if (rolagem_atacante > rolagem_defensor) {
+        // Atacante vence
+        printf("O ATAQUE foi bem-sucedido! Uma tropa do defensor é perdida.\n");
+        defensor->tropas--;
+        
+        if (defensor->tropas == 0) {
+            // Conquista de Território
+            printf("\n>>> CONQUISTA! %s tomou %s.\n", cor_jogador, defensor->nome);
+            
+            // Atualiza dono
+            strcpy(defensor->cor_exercito, cor_jogador);
+            
+            // Move uma tropa
+            atacante->tropas--;
+            defensor->tropas++;
+            
+            printf("Uma tropa foi movida de %s para %s.\n", atacante->nome, defensor->nome);
+        }
+    } else {
+        // Defensor vence ou empata
+        printf("A DEFESA resistiu. Uma tropa do atacante é perdida.\n");
+        atacante->tropas--;
+    }
+}
+
+int verificarVitoria(const Territorio* const mapa, int id_missao, const char* cor_jogador) {
+    // Verifica se o jogador cumpriu os requisitos de sua missão atual
+    int count_territorios_jogador = 0;
+    int tropas_azuis = 0;
+    int max_tropas = 0;
+
+    for (int i = 0; i < NUM_TERRITORIOS; i++) {
+        // Conta territórios do jogador e verifica a maior concentração de tropas
+        if (strcmp(mapa[i].cor_exercito, cor_jogador) == 0) {
+            count_territorios_jogador++;
+            if (mapa[i].tropas > max_tropas) {
+                max_tropas = mapa[i].tropas;
+            }
+        }
+        
+        // Conta tropas do exército AZUL
+        if (strcmp(mapa[i].cor_exercito, "Azul") == 0) {
+            tropas_azuis += mapa[i].tropas;
+        }
+    }
+
+    printf("\n--- Verificação de Missão ---\n");
+
+    switch (id_missao) {
+        case 1: // Conquistar no mínimo 4 territórios
+            printf("Status: %d de 4 territórios conquistados.\n", count_territorios_jogador);
+            if (count_territorios_jogador >= 4) {
+                return VITORIA;
+            }
+            break;
+        case 2: // Destruir o exército AZUL
+            printf("Status: O exército AZUL possui %d tropas restantes.\n", tropas_azuis);
+            if (tropas_azuis == 0) {
+                return VITORIA;
+            }
+            break;
+        case 3: // Possuir mais de 10 tropas em um único território
+            printf("Status: Máxima concentração de tropas é %d (necessário 11+).\n", max_tropas);
+            if (max_tropas > 10) {
+                return VITORIA;
+            }
+            break;
+    }
+
+    return DERROTA;
 }
