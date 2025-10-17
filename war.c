@@ -1,4 +1,3 @@
-
 #include <iostream>
 #include <cstdlib>   // calloc, free, rand, srand
 #include <cstring>   // strcpy, strlen
@@ -200,4 +199,124 @@ void faseDeAtaque(Territorio* mapa, int quantidade, int corJogador) {
         return;
     }
     if (mapa[idxOrigem].tropas < 2) {
-        std::cout << "Precisa ter pelo
+        std::cout << "Precisa ter pelo menos 2 tropas para atacar (1 deve permanecer).\n";
+        return;
+    }
+
+    std::cout << "Digite o indice do territorio de destino (inimigo ou neutro): ";
+    int idxDestino = lerInteiroSeguro();
+    if (idxDestino < 0 || idxDestino >= quantidade) {
+        std::cout << "Destino invalido.\n";
+        return;
+    }
+    if (idxDestino == idxOrigem) {
+        std::cout << "Origem e destino iguais.\n";
+        return;
+    }
+
+    // Chama a simulação passando ponteiros para origem e destino
+    simularAtaque(&mapa[idxOrigem], &mapa[idxDestino], corJogador);
+}
+
+// Simula uma batalha simples e atualiza tropas/dono (usa ponteiros)
+void simularAtaque(Territorio* origem, Territorio* destino, int corJogador) {
+    if (origem == nullptr || destino == nullptr) return;
+
+    std::cout << "\n--- Simulacao de Ataque ---\n";
+    std::cout << "Origem: " << origem->nome << " (" << origem->tropas << " tropas)\n";
+    std::cout << "Destino: " << destino->nome << " (" << destino->tropas << " tropas, dono: " << destino->corDoExercito << ")\n";
+
+    // Simples rolagem de dados: atacante rola N dados = tropas-1, defensor rola M dados = min(2, tropasDef)
+    int atacanteDados = origem->tropas - 1;
+    if (atacanteDados > 3) atacanteDados = 3; // limite por rodada
+    int defensorDados = destino->tropas >=2 ? 2 : destino->tropas;
+    if (defensorDados < 1) defensorDados = 1;
+
+    // Soma das rolagens
+    int somaAtq = 0, somaDef = 0;
+    for (int i = 0; i < atacanteDados; ++i) somaAtq += (rand() % 6) + 1;
+    for (int i = 0; i < defensorDados; ++i) somaDef += (rand() % 6) + 1;
+
+    std::cout << "Atacante (" << atacanteDados << " dados) soma: " << somaAtq << "\n";
+    std::cout << "Defensor  (" << defensorDados << " dados) soma: " << somaDef << "\n";
+
+    if (somaAtq > somaDef) {
+        // atacante vence: remove 1-2 tropas do defensor
+        int perdas = 1 + (rand() % 2);
+        if (perdas > destino->tropas) perdas = destino->tropas;
+        destino->tropas -= perdas;
+        std::cout << "Atacante venceu! Defensor perde " << perdas << " tropas.\n";
+    } else {
+        // defensor vence: atacante perde 1 tropa
+        origem->tropas -= 1;
+        std::cout << "Defensor resistiu! Atacante perde 1 tropa.\n";
+    }
+
+    // Se destino ficar com 0 tropas, conquista
+    if (destino->tropas <= 0) {
+        std::cout << "Territorio " << destino->nome << " conquistado!\n";
+        destino->corDoExercito = corJogador;
+        // mover uma tropa do atacante para ocupar (deixa pelo menos 1 na origem)
+        if (origem->tropas > 1) {
+            origem->tropas -= 1;
+            destino->tropas = 1;
+            std::cout << "1 tropa movida de " << origem->nome << " para " << destino->nome << ".\n";
+        } else {
+            // se por alguma razao nao houver tropas sobrando, ocupa sem mover (caso extremo)
+            destino->tropas = 0;
+        }
+    }
+}
+
+// Sorteia ID de missao aleatoria
+int sortearMissao() {
+    // 0 => destruir exército, 1 => conquistar X territorios
+    return rand() % NUM_MISSOES;
+}
+
+// Verifica condicao de vitoria baseado na missao
+bool verificarVitoria(const Territorio* mapa, int quantidade, int missaoId, int corJogador) {
+    if (mapa == nullptr) return false;
+
+    if (missaoId == 0) {
+        // Missao: destruir um exército inimigo (qualquer cor diferente da do jogador)
+        // Condicao: existir ao menos uma cor inimiga cujo total de tropas seja 0 ou nao exista território com essa cor.
+        // Implementacao simples: pra cada cor inimiga conhecida, verifica se ha tropas dessa cor
+        int somaVermelho = 0;
+        int somaVerde = 0;
+        for (int i = 0; i < quantidade; ++i) {
+            if (mapa[i].corDoExercito == COR_VERMELHA) somaVermelho += mapa[i].tropas;
+            if (mapa[i].corDoExercito == COR_VERDE) somaVerde += mapa[i].tropas;
+        }
+        // Se alguma das cores inimigas tiver soma == 0, consideramos missão cumprida
+        if (somaVermelho == 0 || somaVerde == 0) return true;
+        return false;
+    } else if (missaoId == 1) {
+        // Missao: conquistar N territorios (ex: 4)
+        const int alvo = 4;
+        int cont = 0;
+        for (int i = 0; i < quantidade; ++i) {
+            if (mapa[i].corDoExercito == corJogador) ++cont;
+        }
+        return (cont >= alvo);
+    }
+
+    return false;
+}
+
+// Limpa buffer de entrada (util para misturar cin/cstdio)
+void limparBufferEntrada() {
+    std::cin.clear();
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+}
+
+// Le inteiro com tratamento basico para evitar loop infinito em caso de entrada invalida
+int lerInteiroSeguro() {
+    int valor;
+    while (!(std::cin >> valor)) {
+        std::cout << "Entrada invalida. Digite um numero inteiro: ";
+        limparBufferEntrada();
+    }
+    limparBufferEntrada();
+    return valor;
+}
