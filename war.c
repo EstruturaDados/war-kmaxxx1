@@ -1,98 +1,203 @@
-// ============================================================================
-//         PROJETO WAR ESTRUTURADO - DESAFIO DE CÓDIGO
-// ============================================================================
-//       
-// ============================================================================
-//
-// OBJETIVOS:
-// - Modularizar completamente o código em funções especializadas.
-// - Implementar um sistema de missões para um jogador.
-// - Criar uma função para verificar se a missão foi cumprida.
-// - Utilizar passagem por referência (ponteiros) para modificar dados e
-//   passagem por valor/referência constante (const) para apenas ler.
-// - Foco em: Design de software, modularização, const correctness, lógica de jogo.
-//
-// ============================================================================
 
-// Inclusão das bibliotecas padrão necessárias para entrada/saída, alocação de memória, manipulação de strings e tempo.
+#include <iostream>
+#include <cstdlib>   // calloc, free, rand, srand
+#include <cstring>   // strcpy, strlen
+#include <ctime>     // time
+#include <clocale>   // setlocale
+#include <limits>    // numeric_limits
 
 // --- Constantes Globais ---
-// Definem valores fixos para o número de territórios, missões e tamanho máximo de strings, facilitando a manutenção.
+const int NUM_TERRITORIOS = 8;
+const int NUM_MISSOES     = 2;
+const int MAX_NOME        = 32;
+
+// Cores/donos (inteiro simples)
+const int COR_NEUTRA  = 0;
+const int COR_JOGADOR = 1;
+const int COR_VERMELHA = 2;
+const int COR_VERDE   = 3;
 
 // --- Estrutura de Dados ---
-// Define a estrutura para um território, contendo seu nome, a cor do exército que o domina e o número de tropas.
+struct Territorio {
+    char nome[MAX_NOME];
+    int corDoExercito; // dona do território (0 neutro, 1 jogador, 2 vermelho, ...)
+    int tropas;
+};
 
 // --- Protótipos das Funções ---
-// Declarações antecipadas de todas as funções que serão usadas no programa, organizadas por categoria.
-// Funções de setup e gerenciamento de memória:
-// Funções de interface com o usuário:
-// Funções de lógica principal do jogo:
-// Função utilitária:
+// Setup e gerenciamento de memória
+Territorio* alocarMapa(int quantidade);
+void liberarMemoria(Territorio* mapa);
 
-// --- Função Principal (main) ---
-// Função principal que orquestra o fluxo do jogo, chamando as outras funções em ordem.
+// Inicialização e exibição
+void inicializarTerritorios(Territorio* mapa, int quantidade);
+void exibirMapa(const Territorio* mapa, int quantidade);
+
+// Interface / menu
+void exibirMenuPrincipal();
+void exibirMissao(int missaoId, int corJogador);
+
+// Fase de ataque / batalha
+void faseDeAtaque(Territorio* mapa, int quantidade, int corJogador);
+void simularAtaque(Territorio* origem, Territorio* destino, int corJogador);
+
+// Missões e verificação de vitória
+int sortearMissao();
+bool verificarVitoria(const Territorio* mapa, int quantidade, int missaoId, int corJogador);
+
+// Utilitárias
+void limparBufferEntrada();
+int lerInteiroSeguro();
+
+// ---------------------
+// --- Função main() ---
+// ---------------------
 int main() {
-    // 1. Configuração Inicial (Setup):
-    // - Define o locale para português.
-    // - Inicializa a semente para geração de números aleatórios com base no tempo atual.
-    // - Aloca a memória para o mapa do mundo e verifica se a alocação foi bem-sucedida.
-    // - Preenche os territórios com seus dados iniciais (tropas, donos, etc.).
-    // - Define a cor do jogador e sorteia sua missão secreta.
+    setlocale(LC_ALL, "");              // portugues/locale (se suportado)
+    srand(static_cast<unsigned>(time(nullptr)));
 
-    // 2. Laço Principal do Jogo (Game Loop):
-    // - Roda em um loop 'do-while' que continua até o jogador sair (opção 0) ou vencer.
-    // - A cada iteração, exibe o mapa, a missão e o menu de ações.
-    // - Lê a escolha do jogador e usa um 'switch' para chamar a função apropriada:
-    //   - Opção 1: Inicia a fase de ataque.
-    //   - Opção 2: Verifica se a condição de vitória foi alcançada e informa o jogador.
-    //   - Opção 0: Encerra o jogo.
-    // - Pausa a execução para que o jogador possa ler os resultados antes da próxima rodada.
+    // 1. Configuração inicial
+    Territorio* mapa = alocarMapa(NUM_TERRITORIOS);
+    if (mapa == nullptr) {
+        std::cerr << "Erro: falha ao alocar memoria para o mapa.\n";
+        return 1;
+    }
+    inicializarTerritorios(mapa, NUM_TERRITORIOS);
 
-    // 3. Limpeza:
-    // - Ao final do jogo, libera a memória alocada para o mapa para evitar vazamentos de memória.
+    int corJogador = COR_JOGADOR; // cor do jogador fixa aqui
+    int missao = sortearMissao();
 
+    // 2. Laço principal do jogo
+    int escolha = -1;
+    bool venceu = false;
+    do {
+        std::cout << "\n=== MAPA ATUAL ===\n";
+        exibirMapa(mapa, NUM_TERRITORIOS);
+        std::cout << "\n=== MISSÃO ===\n";
+        exibirMissao(missao, corJogador);
+
+        exibirMenuPrincipal();
+        std::cout << "Escolha: ";
+        escolha = lerInteiroSeguro();
+
+        switch (escolha) {
+            case 1:
+                faseDeAtaque(mapa, NUM_TERRITORIOS, corJogador);
+                break;
+            case 2:
+                if (verificarVitoria(mapa, NUM_TERRITORIOS, missao, corJogador)) {
+                    std::cout << "\nParabens! Voce cumpriu a missao e venceu o jogo!\n";
+                    venceu = true;
+                } else {
+                    std::cout << "\nMissao ainda nao cumprida. Continue tentando!\n";
+                }
+                break;
+            case 0:
+                std::cout << "Saindo do jogo...\n";
+                break;
+            default:
+                std::cout << "Opcao invalida. Tente novamente.\n";
+        }
+
+    } while (escolha != 0 && !venceu);
+
+    // 3. Limpeza
+    liberarMemoria(mapa);
     return 0;
 }
 
-// --- Implementação das Funções ---
+// -----------------------------
+// --- Implementacao das funcoes
+// -----------------------------
 
-// alocarMapa():
-// Aloca dinamicamente a memória para o vetor de territórios usando calloc.
-// Retorna um ponteiro para a memória alocada ou NULL em caso de falha.
+// Aloca dinamicamente o mapa (calloc conforme pedido)
+Territorio* alocarMapa(int quantidade) {
+    Territorio* mapa = static_cast<Territorio*>(calloc(quantidade, sizeof(Territorio)));
+    return mapa;
+}
 
-// inicializarTerritorios():
-// Preenche os dados iniciais de cada território no mapa (nome, cor do exército, número de tropas).
-// Esta função modifica o mapa passado por referência (ponteiro).
+// Inicializa nomes, donos e tropas iniciais
+void inicializarTerritorios(Territorio* mapa, int quantidade) {
+    if (mapa == nullptr) return;
 
-// liberarMemoria():
-// Libera a memória previamente alocada para o mapa usando free.
+    // nomes e configuração inicial (exemplo simples)
+    const char* nomesPadrao[NUM_TERRITORIOS] = {
+        "Ilha do Norte", "Vila Antiga", "Planalto", "Bosque",
+        "Fortaleza", "Ponte Velha", "Deserto", "Vale Azul"
+    };
+    // Distribuicao inicial de donos e tropas (simples)
+    int donos[NUM_TERRITORIOS] = {
+        COR_JOGADOR, COR_VERMELHA, COR_VERMELHA, COR_VERDE,
+        COR_VERDE, COR_NEUTRA, COR_VERMELHA, COR_JOGADOR
+    };
+    int tropasIni[NUM_TERRITORIOS] = {5,4,3,3,2,1,4,6};
 
-// exibirMenuPrincipal():
-// Imprime na tela o menu de ações disponíveis para o jogador.
+    for (int i = 0; i < quantidade && i < NUM_TERRITORIOS; ++i) {
+        strncpy(mapa[i].nome, nomesPadrao[i], MAX_NOME-1);
+        mapa[i].nome[MAX_NOME-1] = '\0';
+        mapa[i].corDoExercito = donos[i];
+        mapa[i].tropas = tropasIni[i];
+    }
+}
 
-// exibirMapa():
-// Mostra o estado atual de todos os territórios no mapa, formatado como uma tabela.
-// Usa 'const' para garantir que a função apenas leia os dados do mapa, sem modificá-los.
+// Libera memoria
+void liberarMemoria(Territorio* mapa) {
+    if (mapa != nullptr) free(mapa);
+}
 
-// exibirMissao():
-// Exibe a descrição da missão atual do jogador com base no ID da missão sorteada.
+// Exibe o mapa (somente leitura -> const)
+void exibirMapa(const Territorio* mapa, int quantidade) {
+    if (mapa == nullptr) return;
+    std::cout << "Idx | Nome               | Dono  | Tropas\n";
+    std::cout << "----+--------------------+-------+--------\n";
+    for (int i = 0; i < quantidade; ++i) {
+        const char* donoStr;
+        switch (mapa[i].corDoExercito) {
+            case COR_JOGADOR: donoStr = "Voce"; break;
+            case COR_VERMELHA: donoStr = "Vermelha"; break;
+            case COR_VERDE: donoStr = "Verde"; break;
+            default: donoStr = "Neutro";
+        }
+        std::cout << (i<10?" ":"") << i << "  | "
+                  << mapa[i].nome << (strlen(mapa[i].nome) < 18 ? std::string(18 - strlen(mapa[i].nome), ' ') : "")
+                  << " | " << donoStr << (strlen(donoStr) < 6 ? std::string(6 - strlen(donoStr), ' ') : "")
+                  << " | " << mapa[i].tropas << "\n";
+    }
+}
 
-// faseDeAtaque():
-// Gerencia a interface para a ação de ataque, solicitando ao jogador os territórios de origem e destino.
-// Chama a função simularAtaque() para executar a lógica da batalha.
+// Exibe menu principal
+void exibirMenuPrincipal() {
+    std::cout << "\n--- MENU PRINCIPAL ---\n";
+    std::cout << "1 - Atacar (iniciar fase de ataque)\n";
+    std::cout << "2 - Verificar missao / condicao de vitoria\n";
+    std::cout << "0 - Sair\n";
+}
 
-// simularAtaque():
-// Executa a lógica de uma batalha entre dois territórios.
-// Realiza validações, rola os dados, compara os resultados e atualiza o número de tropas.
-// Se um território for conquistado, atualiza seu dono e move uma tropa.
+// Exibe descricao da missao com base no ID
+void exibirMissao(int missaoId, int corJogador) {
+    if (missaoId == 0) {
+        std::cout << "Missao: DESTRUIR um exército inimigo por completo (remover todas as tropas de uma cor inimiga).\n";
+    } else if (missaoId == 1) {
+        std::cout << "Missao: CONQUISTAR 4 territorios no mapa (ser o dono de pelo menos 4 territorios).\n";
+    } else {
+        std::cout << "Missao: Desconhecida.\n";
+    }
+}
 
-// sortearMissao():
-// Sorteia e retorna um ID de missão aleatório para o jogador.
+// Gerencia a interface para escolher origem/destino e chama simularAtaque
+void faseDeAtaque(Territorio* mapa, int quantidade, int corJogador) {
+    if (mapa == nullptr) return;
 
-// verificarVitoria():
-// Verifica se o jogador cumpriu os requisitos de sua missão atual.
-// Implementa a lógica para cada tipo de missão (destruir um exército ou conquistar um número de territórios).
-// Retorna 1 (verdadeiro) se a missão foi cumprida, e 0 (falso) caso contrário.
-
-// limparBufferEntrada():
-// Função utilitária para limpar o buffer de entrada do teclado (stdin), evitando problemas com leituras consecutivas de scanf e getchar.
+    std::cout << "\n-- FASE DE ATAQUE --\n";
+    std::cout << "Digite o indice do território de origem (onde voce tem tropas): ";
+    int idxOrigem = lerInteiroSeguro();
+    if (idxOrigem < 0 || idxOrigem >= quantidade) {
+        std::cout << "Origem invalida.\n";
+        return;
+    }
+    if (mapa[idxOrigem].corDoExercito != corJogador) {
+        std::cout << "Voce nao controla o territorio de origem.\n";
+        return;
+    }
+    if (mapa[idxOrigem].tropas < 2) {
+        std::cout << "Precisa ter pelo
