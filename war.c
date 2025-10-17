@@ -1,7 +1,7 @@
-#include <cstdio>    // Para printf, scanf, getchar
-#include <cstdlib>   // Para malloc, free, srand, rand, NULL
-#include <ctime>     // Para time
-#include <cstring>   // Para strcpy, strcmp
+#include <stdio.h>    // Para printf, scanf, getchar
+#include <stdlib.h>   // Para malloc, free, srand, rand, NULL
+#include <time.h>     // Para time
+#include <string.h>   // Para strcpy, strcmp
 
 // ============================================================================
 // --- Constantes Globais ---
